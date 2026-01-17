@@ -380,7 +380,7 @@ const App: React.FC = () => {
 
       <main className="flex-1 max-w-7xl mx-auto px-4 py-8 w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Sidebar - Sports Categories */}
-        <aside className="lg:col-span-2 flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-4 lg:pb-0">
+        <aside className="lg:col-span-2 flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-4 lg:pb-0 no-scrollbar">
           <p className="text-xs font-bold text-zinc-500 uppercase mb-2 hidden lg:block">Popular Sports</p>
           {SPORTS.map((sport) => {
             const count = matches.filter(m => m.sport === sport.id && m.status !== 'Finished').length;
