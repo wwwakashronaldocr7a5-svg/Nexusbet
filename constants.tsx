@@ -24,10 +24,32 @@ export const POPULAR_LEAGUES: Record<SportType, { id: string; name: string; icon
   ],
   Cricket: [
     { id: 'IPL', name: 'IPL', icon: '🇮🇳' },
-    { id: 'T20 World Cup', name: 'T20 WC', icon: '🏏' },
+    { id: 'T20 World Cup', name: 'T20 WC', icon: '🏆' },
+    { id: 'ODI World Cup', name: 'World Cup', icon: '🏏' },
+    { id: 'Champions Trophy', name: 'CT 2025', icon: '🔱' },
+    { id: 'WTC Final', name: 'WTC', icon: '🏛️' },
+    { id: 'Asia Cup', name: 'Asia Cup', icon: '🌏' },
     { id: 'Big Bash League', name: 'BBL', icon: '🇦🇺' },
+    { id: 'The Ashes', name: 'Ashes', icon: '🏺' },
   ],
-  Basketball: [], Tennis: [], Esports: [], MMA: []
+  Basketball: [
+    { id: 'NBA', name: 'NBA', icon: '🇺🇸' },
+    { id: 'EuroLeague', name: 'Euro', icon: '🇪🇺' },
+  ],
+  Tennis: [
+    { id: 'ATP Tour', name: 'ATP', icon: '🎾' },
+    { id: 'WTA Tour', name: 'WTA', icon: '🎾' },
+    { id: 'Grand Slam', name: 'Slams', icon: '🏆' },
+  ],
+  Esports: [
+    { id: 'League of Legends', name: 'LoL', icon: '⚔️' },
+    { id: 'CS2', name: 'CS2', icon: '🔫' },
+    { id: 'Dota 2', name: 'Dota', icon: '🛡️' },
+  ],
+  MMA: [
+    { id: 'UFC', name: 'UFC', icon: '👊' },
+    { id: 'PFL', name: 'PFL', icon: '🥊' },
+  ]
 };
 
 export const TEAMS_BY_SPORT: Record<SportType, { teams: string[], leagues: string[] }> = {
@@ -44,8 +66,8 @@ export const TEAMS_BY_SPORT: Record<SportType, { teams: string[], leagues: strin
     leagues: ['ATP Tour', 'Grand Slam', 'Davis Cup']
   },
   Cricket: {
-    teams: ['India', 'Australia', 'England', 'South Africa', 'New Zealand', 'Pakistan', 'West Indies', 'Sri Lanka', 'Mumbai Indians', 'CSK', 'RCB', 'Gujarat Titans'],
-    leagues: ['IPL', 'ICC World Cup', 'The Hundred', 'Big Bash League']
+    teams: ['India', 'Australia', 'England', 'South Africa', 'New Zealand', 'Pakistan', 'West Indies', 'Sri Lanka', 'Afghanistan', 'Bangladesh', 'Mumbai Indians', 'CSK', 'RCB', 'Gujarat Titans'],
+    leagues: ['IPL', 'T20 World Cup', 'ODI World Cup', 'Champions Trophy', 'WTC Final', 'Asia Cup', 'Big Bash League', 'The Ashes']
   },
   Esports: {
     teams: ['Faker', 'Chovy', 'Knight', 'Caps', 'G2 Esports', 'Fnatic', 'Team Liquid', 'FaZe Clan', 'Natus Pione', 'Team Spirit', 'Vitality'],

@@ -60,24 +60,35 @@ const App: React.FC = () => {
   useEffect(() => {
     const syncRealWorld = async () => {
       // Throttle and check fetching status
-      if (isFetching || (Date.now() - lastFetch < 15000)) return; 
+      if (isFetching || (Date.now() - lastFetch < 10000)) return; 
       
       setIsFetching(true);
-      const { matches: realMatches, sources } = await fetchRealWorldMatches(activeSport, activeLeague || undefined);
-      
-      if (realMatches.length > 0) {
-        setMatches(prev => {
-          const otherMatches = prev.filter(m => m.sport !== activeSport || (activeLeague && m.league !== activeLeague));
-          return [...realMatches, ...otherMatches];
-        });
-        setGroundingSources(sources);
-        setLastFetch(Date.now());
+      try {
+        const { matches: realMatches, sources } = await fetchRealWorldMatches(activeSport, activeLeague || undefined);
+        
+        if (realMatches && realMatches.length > 0) {
+          setMatches(prev => {
+            // Keep matches from other sports
+            const otherSports = prev.filter(m => m.sport !== activeSport);
+            // If filtering by league, keep other leagues of the same sport too
+            const sameSportOtherLeagues = activeLeague 
+              ? prev.filter(m => m.sport === activeSport && m.league !== activeLeague)
+              : [];
+            
+            return [...realMatches, ...sameSportOtherLeagues, ...otherSports];
+          });
+          setGroundingSources(sources);
+          setLastFetch(Date.now());
+        }
+      } catch (e) {
+        console.error("Failed to sync matches:", e);
+      } finally {
+        setIsFetching(false);
       }
-      setIsFetching(false);
     };
 
     syncRealWorld();
-    const interval = setInterval(syncRealWorld, 60000); 
+    const interval = setInterval(syncRealWorld, 45000); 
     return () => clearInterval(interval);
   }, [activeSport, activeLeague]);
 
@@ -86,6 +97,7 @@ const App: React.FC = () => {
       const sportMatch = m.sport === activeSport;
       const leagueMatch = !activeLeague || m.league === activeLeague;
       const statusMatch = statusFilter === 'All' || m.status === statusFilter;
+      // Also ensure we're not showing finished games
       return sportMatch && leagueMatch && statusMatch && m.status !== 'Finished';
     });
   }, [activeSport, activeLeague, statusFilter, matches]);
@@ -148,9 +160,18 @@ const App: React.FC = () => {
               NEXUS<span className="text-emerald-500">BET</span>
             </h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             {currentUser ? (
               <>
+                {currentUser.isAdmin && (
+                  <button 
+                    onClick={() => setIsAdminPanelOpen(true)}
+                    className="flex items-center gap-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest hover:bg-amber-500 hover:text-black transition-all"
+                  >
+                    <span className="hidden sm:inline">Command</span>
+                    <span>🛡️</span>
+                  </button>
+                )}
                 <div className="hidden sm:flex flex-col items-end">
                   <span className="text-[10px] font-bold text-zinc-500 uppercase">Available</span>
                   <span className="text-emerald-400 font-black">₹{currentUser.balance.toLocaleString('en-IN')}</span>
@@ -173,10 +194,20 @@ const App: React.FC = () => {
             </button>
           ))}
           
-          <div className="mt-8 hidden lg:block border-t border-zinc-900 pt-8">
-             <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest mb-4">Verification Panel</p>
-             <button onClick={() => setIsAdminPanelOpen(true)} className="w-full text-left p-3 rounded-xl bg-zinc-900 border border-zinc-800 text-[10px] font-black text-zinc-500 hover:text-emerald-500 transition-colors">🛡️ Admin Command</button>
-          </div>
+          {currentUser?.isAdmin && (
+            <div className="mt-8 border-t border-zinc-900 pt-8 lg:block hidden">
+               <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest mb-4">Command Center</p>
+               <button 
+                onClick={() => setIsAdminPanelOpen(true)} 
+                className="w-full text-left p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10 text-[10px] font-black text-amber-500 hover:bg-amber-500 hover:text-black transition-all group"
+               >
+                 <div className="flex items-center justify-between">
+                   <span>Admin Console</span>
+                   <span className="group-hover:translate-x-1 transition-transform">→</span>
+                 </div>
+               </button>
+            </div>
+          )}
         </aside>
 
         <section className="lg:col-span-7 space-y-6">
@@ -207,10 +238,10 @@ const App: React.FC = () => {
               <span className={`w-2 h-2 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.8)] ${isFetching ? 'bg-amber-500 animate-bounce' : 'bg-emerald-500 animate-pulse'}`}></span>
               {activeLeague || activeSport} Market
             </h3>
-            <div className="flex items-center gap-4">
-               {isFetching && <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest animate-pulse">Syncing...</span>}
+            <div className="flex items-center gap-2 sm:gap-4">
+               {isFetching && <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest animate-pulse">Searching Live...</span>}
                {lastFetch > 0 && (
-                 <span className="text-[10px] text-zinc-600 font-bold uppercase">Last Grounded: {new Date(lastFetch).toLocaleTimeString()}</span>
+                 <span className="text-[9px] sm:text-[10px] text-zinc-600 font-bold uppercase">Grounded: {new Date(lastFetch).toLocaleTimeString()}</span>
                )}
             </div>
           </div>
@@ -223,8 +254,8 @@ const App: React.FC = () => {
             ) : (
               <div className="py-20 text-center bg-zinc-900/50 rounded-[3rem] border border-dashed border-zinc-800">
                  <p className="text-4xl mb-4 grayscale opacity-50">🏟️</p>
-                 <p className="text-xs font-black text-zinc-600 uppercase tracking-widest">No live matches found in this market</p>
-                 <p className="text-[10px] text-zinc-700 uppercase mt-2">Checking global exchanges...</p>
+                 <p className="text-xs font-black text-zinc-600 uppercase tracking-widest">No matching events found</p>
+                 <p className="text-[10px] text-zinc-700 uppercase mt-2">Connecting to global data streams...</p>
               </div>
             )}
           </div>
@@ -233,12 +264,13 @@ const App: React.FC = () => {
             <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl">
                <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-2">
                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                 Market Data Sources
+                 Grounding Sources (Web)
                </p>
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                 {groundingSources.map((src, i) => (
-                   <a key={i} href={src.web?.uri} target="_blank" className="text-[10px] text-zinc-500 hover:text-emerald-500 truncate bg-black/30 p-2 rounded-lg border border-zinc-800/50">
-                     🔗 {src.web?.title || 'Live Exchange Data'}
+                 {groundingSources.slice(0, 4).map((src, i) => (
+                   <a key={i} href={src.web?.uri} target="_blank" className="text-[10px] text-zinc-500 hover:text-emerald-500 truncate bg-black/30 p-2 rounded-lg border border-zinc-800/50 flex items-center gap-2">
+                     <span className="opacity-30"># {i+1}</span>
+                     {src.web?.title || 'Live Exchange Data'}
                    </a>
                  ))}
                </div>

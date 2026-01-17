@@ -35,7 +35,7 @@ export const getMatchInsight = async (match: Match): Promise<AIInsight | null> =
       ...data
     };
   } catch (error) {
-    console.error("Gemini Error:", error);
+    console.error("Gemini Insight Error:", error);
     return null;
   }
 };
@@ -44,13 +44,17 @@ export const fetchRealWorldMatches = async (sport: string, league?: string): Pro
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const leagueQuery = league ? `specifically in the ${league} tournament` : '';
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Search for current live and upcoming ${sport} matches today ${leagueQuery}. 
-      Include tournaments like LaLiga, Serie A, Premier League if it's Soccer.
-      Include IPL if it's Cricket.
-      Provide a list of up to 8 matches with current scores, teams, and status. 
-      Return only JSON format matching the app's Match interface.`,
+      contents: `Search for real-world ${sport} matches happening right now (Live) AND matches scheduled for later today or tomorrow (Upcoming) ${leagueQuery}. 
+      
+      RULES:
+      1. YOU MUST provide at least 4 'Upcoming' matches and 4 'Live' matches if available.
+      2. For the 'status' field, you MUST ONLY use the strings 'Live' or 'Upcoming'. NEVER use 'Scheduled' or 'Postponed'.
+      3. For 'id', generate a unique string like 'real-soccer-123'.
+      4. Keep 'commentary' extremely short (max 10 words).
+      5. Return ONLY the JSON array. Do not include markdown formatting or extra text.`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
@@ -65,7 +69,7 @@ export const fetchRealWorldMatches = async (sport: string, league?: string): Pro
               homeTeam: { type: Type.STRING },
               awayTeam: { type: Type.STRING },
               startTime: { type: Type.STRING },
-              status: { type: Type.STRING },
+              status: { type: Type.STRING, description: "Must be 'Live' or 'Upcoming'" },
               score: {
                 type: Type.OBJECT,
                 properties: {
@@ -87,18 +91,32 @@ export const fetchRealWorldMatches = async (sport: string, league?: string): Pro
               },
               commentary: { type: Type.STRING }
             },
-            required: ["id", "sport", "homeTeam", "awayTeam", "status", "odds"]
+            required: ["id", "sport", "homeTeam", "awayTeam", "status", "odds", "league", "startTime"]
           }
         }
       }
     });
 
-    const matches = JSON.parse(response.text.trim());
+    // Clean response text to ensure it's valid JSON
+    let cleanedText = response.text.trim();
+    // Remove potential markdown code blocks if the model ignored the mimeType hint
+    if (cleanedText.startsWith("```")) {
+      cleanedText = cleanedText.replace(/^```json\n?/, "").replace(/\n?```$/, "");
+    }
+
+    const matches = JSON.parse(cleanedText);
+    
+    // Safety check: ensure status matches the type system exactly
+    const validatedMatches = (matches as any[]).map(m => ({
+      ...m,
+      status: (m.status === 'Live' || m.status === 'Upcoming') ? m.status : 'Upcoming'
+    }));
+
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     
-    return { matches, sources };
+    return { matches: validatedMatches, sources };
   } catch (error) {
-    console.error("Grounding Fetch Error:", error);
+    console.error("Grounding Fetch Error Detail:", error);
     return { matches: [], sources: [] };
   }
 };
