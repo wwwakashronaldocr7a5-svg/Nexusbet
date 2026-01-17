@@ -13,10 +13,27 @@ export const SPORTS: { id: SportType; icon: string }[] = [
   { id: 'MMA', icon: '🥊' },
 ];
 
+export const POPULAR_LEAGUES: Record<SportType, { id: string; name: string; icon: string }[]> = {
+  Soccer: [
+    { id: 'Premier League', name: 'EPL', icon: '🇬🇧' },
+    { id: 'La Liga', name: 'LaLiga', icon: '🇪🇸' },
+    { id: 'Serie A', name: 'Serie A', icon: '🇮🇹' },
+    { id: 'Bundesliga', name: 'Bundesliga', icon: '🇩🇪' },
+    { id: 'Ligue 1', name: 'Ligue 1', icon: '🇫🇷' },
+    { id: 'Champions League', name: 'UCL', icon: '🏆' },
+  ],
+  Cricket: [
+    { id: 'IPL', name: 'IPL', icon: '🇮🇳' },
+    { id: 'T20 World Cup', name: 'T20 WC', icon: '🏏' },
+    { id: 'Big Bash League', name: 'BBL', icon: '🇦🇺' },
+  ],
+  Basketball: [], Tennis: [], Esports: [], MMA: []
+};
+
 export const TEAMS_BY_SPORT: Record<SportType, { teams: string[], leagues: string[] }> = {
   Soccer: {
-    teams: ['Liverpool', 'Chelsea', 'Man United', 'Spurs', 'PSG', 'Bayern Munich', 'Dortmund', 'AC Milan', 'Inter Milan', 'Juventus', 'Atletico Madrid', 'Napoli', 'Ajax', 'Benfica', 'Porto'],
-    leagues: ['Champions League', 'Premier League', 'Serie A', 'Bundesliga', 'Ligue 1']
+    teams: ['Real Madrid', 'Barcelona', 'Atletico Madrid', 'Juventus', 'AC Milan', 'Inter Milan', 'Napoli', 'Bayern Munich', 'Dortmund', 'Bayer Leverkusen', 'PSG', 'Marseille', 'Liverpool', 'Man City', 'Arsenal'],
+    leagues: ['La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Premier League']
   },
   Basketball: {
     teams: ['Miami Heat', 'Boston Celtics', 'Milwaukee Bucks', 'Phoenix Suns', 'Denver Nuggets', 'Dallas Mavericks', 'Philadelphia 76ers', 'LA Clippers', 'Chicago Bulls', 'Brooklyn Nets'],
@@ -31,7 +48,7 @@ export const TEAMS_BY_SPORT: Record<SportType, { teams: string[], leagues: strin
     leagues: ['IPL', 'ICC World Cup', 'The Hundred', 'Big Bash League']
   },
   Esports: {
-    teams: ['Faker', 'Chovy', 'Knight', 'Caps', 'G2 Esports', 'Fnatic', 'Team Liquid', 'FaZe Clan', 'Natus Vincere', 'Team Spirit', 'Vitality'],
+    teams: ['Faker', 'Chovy', 'Knight', 'Caps', 'G2 Esports', 'Fnatic', 'Team Liquid', 'FaZe Clan', 'Natus Pione', 'Team Spirit', 'Vitality'],
     leagues: ['LEC', 'LCK', 'LPL', 'PGL Major', 'The International']
   },
   MMA: {
@@ -54,24 +71,23 @@ export const MOCK_MATCHES: Match[] = [
     odds: { home: 2.10, draw: 3.40, away: 3.10 }
   },
   {
-    id: '2',
+    id: 's-2',
     sport: 'Soccer',
     league: 'La Liga',
     homeTeam: 'Real Madrid',
     awayTeam: 'Barcelona',
-    startTime: new Date(Date.now() + 3600000).toISOString(),
+    startTime: new Date(Date.now() + 7200000).toISOString(),
     status: 'Upcoming',
     odds: { home: 1.85, draw: 3.80, away: 4.20 }
   },
   {
-    id: '3',
-    sport: 'Basketball',
-    league: 'NBA',
-    homeTeam: 'LA Lakers',
-    awayTeam: 'Golden State Warriors',
-    startTime: new Date().toISOString(),
-    status: 'Live',
-    score: { home: 102, away: 98 },
-    odds: { home: 1.55, away: 2.45 }
+    id: 's-3',
+    sport: 'Soccer',
+    league: 'Serie A',
+    homeTeam: 'Juventus',
+    awayTeam: 'AC Milan',
+    startTime: new Date(Date.now() + 14400000).toISOString(),
+    status: 'Upcoming',
+    odds: { home: 2.30, draw: 3.10, away: 3.20 }
   }
 ];

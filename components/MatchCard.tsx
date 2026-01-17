@@ -25,19 +25,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelect, activeSel
   const prevScore = useRef(match.score);
   const prevOdds = useRef(match.odds);
 
-  // Simulated "Market Fetching" Mechanism
   useEffect(() => {
-    const fetchSimulation = setInterval(() => {
-      // Briefly trigger a "syncing" state to simulate data retrieval
-      setIsSyncing(true);
-      setTimeout(() => setIsSyncing(false), 800);
-    }, 5000); // Poll every 5 seconds
-
-    return () => clearInterval(fetchSimulation);
-  }, []);
-
-  useEffect(() => {
-    // Score update detection
     if (match.score && prevScore.current) {
       if (match.score.home > prevScore.current.home) {
         setHomeFlash(true);
@@ -50,7 +38,6 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelect, activeSel
     }
     prevScore.current = match.score;
 
-    // Odds trend detection
     const threshold = 0.01;
     const newTrends: OddsTrendState = { home: null, draw: null, away: null };
     let changed = false;
@@ -72,7 +59,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelect, activeSel
       setOddsTrends(newTrends);
       const timer = setTimeout(() => {
         setOddsTrends({ home: null, draw: null, away: null });
-      }, 4000); // Keep trend visible for 4s
+      }, 4000);
       return () => clearTimeout(timer);
     }
     
@@ -92,7 +79,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelect, activeSel
           isSelected(type) 
             ? 'bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-500/20' 
             : 'bg-zinc-800 border-zinc-700/50 hover:border-zinc-500 text-zinc-300'
-        } ${isSyncing ? 'scale-[0.98]' : 'scale-100'}`}
+        }`}
       >
         <span className="text-[9px] uppercase font-black opacity-40 mb-0.5">{label}</span>
         <div className="flex items-center gap-1.5">
@@ -107,105 +94,90 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelect, activeSel
             </span>
           )}
         </div>
-        
-        {/* Trend Indicator Background Pulse */}
         {trend && (
           <div className={`absolute inset-0 opacity-10 pointer-events-none transition-opacity duration-1000 ${
             trend === 'up' ? 'bg-emerald-500' : 'bg-rose-500'
           }`}></div>
         )}
-
-        {/* Syncing Overlay (Scanline Effect) */}
-        {isSyncing && (
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-transparent h-[200%] w-full -top-full animate-[scan_0.8s_ease-in-out]"></div>
-        )}
       </button>
     );
   };
 
+  const isCricket = match.sport === 'Cricket';
+
   return (
     <div className={`group relative bg-zinc-900 border rounded-2xl p-4 shadow-xl transition-all duration-500 ${
-      match.isNew ? 'border-emerald-500 ring-4 ring-emerald-500/10 scale-[1.01]' : 'border-zinc-800 hover:border-zinc-700 hover:shadow-emerald-900/5'
-    }`}>
-      {/* Top Sync Bar */}
+      isCricket ? 'border-emerald-500/30' : 'border-zinc-800'
+    } hover:border-zinc-700`}>
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-950 border border-zinc-800">
             <span className={`h-1.5 w-1.5 rounded-full ${match.status === 'Live' ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'}`}></span>
             <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
-              {isSyncing ? 'Syncing Market...' : 'Market Live'}
+              {match.status === 'Live' ? 'Grounded Live' : 'Market Ready'}
             </span>
           </div>
-          {match.isNew && (
-            <span className="bg-emerald-500 text-black text-[8px] font-black px-1.5 py-0.5 rounded shadow-lg shadow-emerald-500/20">NEW MARKET</span>
+          {isCricket && (
+            <span className="bg-emerald-500/10 text-emerald-500 text-[8px] font-black px-1.5 py-0.5 rounded border border-emerald-500/20">IPL 2024</span>
           )}
         </div>
-        
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-tighter">{match.league}</span>
-          {match.status === 'Live' && (
-            <div className="flex items-center gap-1.5 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
-              <span className="text-[9px] font-black text-rose-500 uppercase italic">Live {match.minute}'</span>
-            </div>
-          )}
-        </div>
+        <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-tighter">{match.league}</span>
       </div>
 
-      <div className="flex items-center justify-between gap-2 mb-5">
-        <div className="flex-1">
-          <p className="font-black text-sm text-zinc-200 uppercase tracking-tight leading-none truncate">{match.homeTeam}</p>
+      <div className="flex items-center justify-between gap-4 mb-5">
+        <div className="flex-1 text-center sm:text-left">
+          <p className="font-black text-sm text-zinc-200 uppercase tracking-tight leading-none truncate mb-1">{match.homeTeam}</p>
+          {isCricket && match.score && (
+            <p className="text-[10px] font-bold text-zinc-500 italic">
+              {match.score.home}/{match.score.homeWickets || 0} ({match.score.homeOvers || '0.0'})
+            </p>
+          )}
         </div>
         
-        <div className="flex flex-col items-center justify-center min-w-[90px]">
+        <div className="flex flex-col items-center justify-center min-w-[100px]">
           {match.score ? (
             <div className="relative flex items-center gap-3 bg-zinc-950 px-4 py-2 rounded-2xl border border-zinc-800/80 shadow-2xl">
-              <span className={`text-2xl font-black transition-all duration-500 inline-block tabular-nums ${
-                homeFlash ? 'text-emerald-400 scale-125 drop-shadow-[0_0_15px_rgba(52,211,153,0.4)]' : 'text-white'
-              }`}>
+              <span className={`text-2xl font-black tabular-nums ${homeFlash ? 'text-emerald-400 scale-110' : 'text-white'}`}>
                 {match.score.home}
               </span>
-              <span className="text-zinc-700 font-bold opacity-30">:</span>
-              <span className={`text-2xl font-black transition-all duration-500 inline-block tabular-nums ${
-                awayFlash ? 'text-emerald-400 scale-125 drop-shadow-[0_0_15px_rgba(52,211,153,0.4)]' : 'text-white'
-              }`}>
+              <span className="text-zinc-700 font-bold opacity-30">-</span>
+              <span className={`text-2xl font-black tabular-nums ${awayFlash ? 'text-emerald-400 scale-110' : 'text-white'}`}>
                 {match.score.away}
               </span>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-1">
-               <p className="text-[10px] text-zinc-400 font-black tabular-nums">
-                {new Date(match.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-               </p>
-               <div className="h-0.5 w-12 bg-zinc-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 w-1/3 animate-[loading_2s_infinite]"></div>
-               </div>
-            </div>
+             <p className="text-[10px] text-zinc-400 font-black tabular-nums">
+              {new Date(match.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+             </p>
           )}
         </div>
 
-        <div className="flex-1 text-right">
-          <p className="font-black text-sm text-zinc-200 uppercase tracking-tight leading-none truncate">{match.awayTeam}</p>
+        <div className="flex-1 text-center sm:text-right">
+          <p className="font-black text-sm text-zinc-200 uppercase tracking-tight leading-none truncate mb-1">{match.awayTeam}</p>
+          {isCricket && match.score && (
+            <p className="text-[10px] font-bold text-zinc-500 italic">
+              {match.score.away}/{match.score.awayWickets || 0} ({match.score.awayOvers || '0.0'})
+            </p>
+          )}
         </div>
       </div>
 
       <div className={`grid ${match.odds.draw ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
-        <OddsButton label="Home" odds={match.odds.home} type="home" teamName={match.homeTeam} />
+        <OddsButton label="1" odds={match.odds.home} type="home" teamName={match.homeTeam} />
         {match.odds.draw && (
-          <OddsButton label="Draw" odds={match.odds.draw} type="draw" teamName="Draw" />
+          <OddsButton label="X" odds={match.odds.draw} type="draw" teamName="Draw" />
         )}
-        <OddsButton label="Away" odds={match.odds.away} type="away" teamName={match.awayTeam} />
+        <OddsButton label="2" odds={match.odds.away} type="away" teamName={match.awayTeam} />
       </div>
 
-      <style>{`
-        @keyframes scan {
-          from { top: -100%; }
-          to { top: 100%; }
-        }
-        @keyframes loading {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(200%); }
-        }
-      `}</style>
+      {match.commentary && (
+        <div className="mt-4 p-2 bg-black/40 rounded-lg border border-zinc-800/50">
+           <p className="text-[9px] text-zinc-500 leading-tight italic">
+             <span className="text-emerald-500 font-black mr-1 uppercase">Commentary:</span>
+             {match.commentary}
+           </p>
+        </div>
+      )}
     </div>
   );
 };

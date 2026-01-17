@@ -19,10 +19,19 @@ export interface Match {
   awayTeam: string;
   startTime: string;
   status: 'Live' | 'Upcoming' | 'Finished';
-  score?: { home: number; away: number };
+  score?: { 
+    home: number; 
+    away: number;
+    homeWickets?: number;
+    awayWickets?: number;
+    homeOvers?: string;
+    awayOvers?: string;
+  };
   odds: Odds;
   minute?: number;
   isNew?: boolean;
+  commentary?: string;
+  sourceUrl?: string; // For Grounding Attribution
 }
 
 export interface BetSelection {
@@ -96,9 +105,4 @@ export interface User {
     goalAlerts: boolean;
     promos: boolean;
   };
-}
-
-export interface UserState {
-  balance: number;
-  currency: string;
 }
