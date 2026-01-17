@@ -2,40 +2,53 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Match, AIInsight } from "../types";
 
-export const getMatchInsight = async (match: Match): Promise<AIInsight | null> => {
+export const getDeepMatchAnalysis = async (match: Match): Promise<any> => {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `Analyze this sports match and provide a betting insight.
+      contents: `Perform a deep tactical analysis for this real-world sports match:
+      Match: ${match.homeTeam} vs ${match.awayTeam} (${match.league})
       Sport: ${match.sport}
-      League: ${match.league}
-      Home Team: ${match.homeTeam}
-      Away Team: ${match.awayTeam}
-      Current Odds: Home(${match.odds.home}), Draw(${match.odds.draw || 'N/A'}), Away(${match.odds.away})
-      Current Status: ${match.status} ${match.score ? `(Score: ${match.score.home}-${match.score.away})` : ''}`,
+      
+      Provide a detailed JSON response including:
+      1. H2H (Head to Head) - last 5 matches outcome
+      2. Win Probability (%) for Home, Draw, Away
+      3. Key Players to watch
+      4. Tactical Setup/Form analysis
+      5. Predicted Correct Score`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            prediction: { type: Type.STRING, description: "Short prediction text" },
-            confidence: { type: Type.NUMBER, description: "Confidence level 0-100" },
-            reasoning: { type: Type.STRING, description: "Detailed reasoning" }
+            h2h: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            },
+            winProbability: {
+              type: Type.OBJECT,
+              properties: {
+                home: { type: Type.NUMBER },
+                draw: { type: Type.NUMBER },
+                away: { type: Type.NUMBER }
+              }
+            },
+            keyPlayers: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            },
+            tacticalAnalysis: { type: Type.STRING },
+            predictedScore: { type: Type.STRING }
           },
-          required: ["prediction", "confidence", "reasoning"]
+          required: ["h2h", "winProbability", "keyPlayers", "tacticalAnalysis", "predictedScore"]
         }
       }
     });
 
-    const jsonStr = response.text.trim();
-    const data = JSON.parse(jsonStr);
-    return {
-      matchId: match.id,
-      ...data
-    };
+    return JSON.parse(response.text.trim());
   } catch (error) {
-    console.error("Gemini Insight Error:", error);
+    console.error("Deep Analysis Error:", error);
     return null;
   }
 };
@@ -43,21 +56,20 @@ export const getMatchInsight = async (match: Match): Promise<AIInsight | null> =
 export const fetchRealWorldMatches = async (sport: string, league?: string): Promise<{ matches: Match[], sources: any[] }> => {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const leagueQuery = league ? `specifically in the ${league} tournament` : 'across all major global leagues';
-    
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const now = new Date().toLocaleTimeString();
+
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Search for real-world ${sport} matches ${leagueQuery}. 
-      Return a HIGH DENSITY list of at least 8 matches:
-      - 4 'Live' matches (happening now)
-      - 4 'Upcoming' matches (happening today/tomorrow)
+      contents: `Today is ${today}, current time is ${now}. 
+      Search Google for ACTUAL, REAL-WORLD ${sport} matches ${league ? `in the ${league} league` : 'globally'} scheduled or live for TODAY and TOMORROW.
       
-      RULES:
-      1. Use 'status' as exactly 'Live' or 'Upcoming'.
-      2. For 'id', use unique strings.
-      3. For 'odds', provide realistic betting market numbers (e.g. 1.85, 3.40, 4.20).
-      4. For 'score', if 'Live', provide the current real-world score.
-      5. Include a short 'commentary' snippet for each.`,
+      CRITICAL RULES:
+      1. ONLY return real matches that are actually happening. Do not invent matches.
+      2. Status must be 'Live' if they are currently playing according to Google Search, otherwise 'Upcoming'.
+      3. Provide realistic live odds from current market averages.
+      4. For Live matches, include the actual real-time score.
+      5. Include a short 'commentary' about the current state of the match or team news.`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
@@ -92,8 +104,7 @@ export const fetchRealWorldMatches = async (sport: string, league?: string): Pro
                   away: { type: Type.NUMBER }
                 }
               },
-              commentary: { type: Type.STRING },
-              minute: { type: Type.NUMBER }
+              commentary: { type: Type.STRING }
             },
             required: ["id", "sport", "homeTeam", "awayTeam", "status", "odds", "league", "startTime"]
           }
@@ -110,7 +121,7 @@ export const fetchRealWorldMatches = async (sport: string, league?: string): Pro
     const validatedMatches = (matches as any[]).map(m => ({
       ...m,
       status: (m.status === 'Live' || m.status === 'Upcoming') ? m.status : 'Upcoming',
-      isNew: Math.random() > 0.7 // Randomly flag some as 'Top Events'
+      isNew: Math.random() > 0.8
     }));
 
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];

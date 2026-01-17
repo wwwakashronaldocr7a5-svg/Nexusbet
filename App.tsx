@@ -13,6 +13,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { SettingsModal } from './components/SettingsModal';
 import { WithdrawModal } from './components/WithdrawModal';
 import { KycModal } from './components/KycModal';
+import { MatchDetailsModal } from './components/MatchDetailsModal';
 
 const App: React.FC = () => {
   const [activeSport, setActiveSport] = useState<SportType>('Soccer'); 
@@ -27,6 +28,7 @@ const App: React.FC = () => {
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+  const [selectedMatchForDetails, setSelectedMatchForDetails] = useState<Match | null>(null);
   const [betHistory, setBetHistory] = useState<BetRecord[]>([]);
   const [matches, setMatches] = useState<Match[]>(MOCK_MATCHES);
   const [groundingSources, setGroundingSources] = useState<any[]>([]);
@@ -51,16 +53,13 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Sync effect for Sport changes - Reset league
   useEffect(() => {
     setActiveLeague(null);
   }, [activeSport]);
 
-  // REAL WORLD DATA FETCHING
   useEffect(() => {
     const syncRealWorld = async () => {
-      // Throttle and check fetching status
-      if (isFetching || (Date.now() - lastFetch < 10000)) return; 
+      if (isFetching || (Date.now() - lastFetch < 20000)) return; 
       
       setIsFetching(true);
       try {
@@ -68,9 +67,7 @@ const App: React.FC = () => {
         
         if (realMatches && realMatches.length > 0) {
           setMatches(prev => {
-            // Keep matches from other sports
             const otherSports = prev.filter(m => m.sport !== activeSport);
-            // If filtering by league, keep other leagues of the same sport too
             const sameSportOtherLeagues = activeLeague 
               ? prev.filter(m => m.sport === activeSport && m.league !== activeLeague)
               : [];
@@ -88,7 +85,7 @@ const App: React.FC = () => {
     };
 
     syncRealWorld();
-    const interval = setInterval(syncRealWorld, 45000); 
+    const interval = setInterval(syncRealWorld, 60000); 
     return () => clearInterval(interval);
   }, [activeSport, activeLeague]);
 
@@ -97,7 +94,6 @@ const App: React.FC = () => {
       const sportMatch = m.sport === activeSport;
       const leagueMatch = !activeLeague || m.league === activeLeague;
       const statusMatch = statusFilter === 'All' || m.status === statusFilter;
-      // Also ensure we're not showing finished games
       return sportMatch && leagueMatch && statusMatch && m.status !== 'Finished';
     });
   }, [activeSport, activeLeague, statusFilter, matches]);
@@ -152,6 +148,7 @@ const App: React.FC = () => {
       {isHistoryOpen && currentUser && <BetHistory history={betHistory} onClose={() => setIsHistoryOpen(false)} onSettle={(b) => { authService.updateBetInHistory(currentUser.username, {...b, status: 'Won', winnings: b.potentialPayout}); refreshUser(); }} />}
       {isAdminPanelOpen && currentUser?.isAdmin && <AdminPanel onClose={() => setIsAdminPanelOpen(false)} currentUser={currentUser} onRefreshUser={refreshUser} />}
       {isSettingsOpen && currentUser && <SettingsModal user={currentUser} onClose={() => setIsSettingsOpen(false)} onUpdate={refreshUser} />}
+      {selectedMatchForDetails && <MatchDetailsModal match={selectedMatchForDetails} onClose={() => setSelectedMatchForDetails(null)} />}
 
       <nav className="bg-zinc-950 border-b border-zinc-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -193,25 +190,9 @@ const App: React.FC = () => {
               <div className="flex items-center gap-3"><span>{sport.icon}</span>{sport.id}</div>
             </button>
           ))}
-          
-          {currentUser?.isAdmin && (
-            <div className="mt-8 border-t border-zinc-900 pt-8 lg:block hidden">
-               <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest mb-4">Command Center</p>
-               <button 
-                onClick={() => setIsAdminPanelOpen(true)} 
-                className="w-full text-left p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10 text-[10px] font-black text-amber-500 hover:bg-amber-500 hover:text-black transition-all group"
-               >
-                 <div className="flex items-center justify-between">
-                   <span>Admin Console</span>
-                   <span className="group-hover:translate-x-1 transition-transform">→</span>
-                 </div>
-               </button>
-            </div>
-          )}
         </aside>
 
         <section className="lg:col-span-7 space-y-6">
-          {/* Popular Leagues Row */}
           {POPULAR_LEAGUES[activeSport].length > 0 && (
             <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
                <button 
@@ -249,7 +230,13 @@ const App: React.FC = () => {
           <div className="grid grid-cols-1 gap-4">
             {filteredMatches.length > 0 ? (
               filteredMatches.map(match => (
-                <MatchCard key={match.id} match={match} onSelect={handleSelection} activeSelections={selections} />
+                <MatchCard 
+                  key={match.id} 
+                  match={match} 
+                  onSelect={handleSelection} 
+                  activeSelections={selections} 
+                  onOpenDetails={(m) => setSelectedMatchForDetails(m)}
+                />
               ))
             ) : (
               <div className="py-20 text-center bg-zinc-900/50 rounded-[3rem] border border-dashed border-zinc-800">
@@ -259,23 +246,6 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
-
-          {groundingSources.length > 0 && (
-            <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl">
-               <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-2">
-                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                 Grounding Sources (Web)
-               </p>
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                 {groundingSources.slice(0, 4).map((src, i) => (
-                   <a key={i} href={src.web?.uri} target="_blank" className="text-[10px] text-zinc-500 hover:text-emerald-500 truncate bg-black/30 p-2 rounded-lg border border-zinc-800/50 flex items-center gap-2">
-                     <span className="opacity-30"># {i+1}</span>
-                     {src.web?.title || 'Live Exchange Data'}
-                   </a>
-                 ))}
-               </div>
-            </div>
-          )}
         </section>
 
         <aside className="lg:col-span-3">
