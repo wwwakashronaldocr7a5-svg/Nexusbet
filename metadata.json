@@ -1,0 +1,7 @@
+{
+  "name": "NexusBet - AI-Powered Sports Arena",
+  "description": "A premium sports betting simulation platform featuring live odds, real-time bet slip management, and AI-driven match insights using Gemini.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
