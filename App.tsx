@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Match, SportType, BetSelection, User, AIInsight, BetRecord, WithdrawalRequest, HouseStats } from './types';
+import { Match, SportType, BetSelection, User, AIInsight, BetRecord, WithdrawalRequest, HouseStats, KycStatus } from './types';
 import { MOCK_MATCHES, SPORTS, INITIAL_BALANCE, TEAMS_BY_SPORT } from './constants';
 import { MatchCard } from './components/MatchCard';
 import { BetSlip } from './components/BetSlip';
@@ -12,20 +12,20 @@ import { DepositModal } from './components/DepositModal';
 import { AdminPanel } from './components/AdminPanel';
 import { SettingsModal } from './components/SettingsModal';
 import { WithdrawModal } from './components/WithdrawModal';
+import { KycModal } from './components/KycModal';
 
 const App: React.FC = () => {
   const [activeSport, setActiveSport] = useState<SportType>('Soccer');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Live' | 'Upcoming'>('All');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [selections, setSelections] = useState<BetSelection[]>([]);
-  const [selectedInsight, setSelectedInsight] = useState<AIInsight | null>(null);
-  const [loadingInsight, setLoadingInsight] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [betHistory, setBetHistory] = useState<BetRecord[]>([]);
   const [matches, setMatches] = useState<Match[]>(MOCK_MATCHES);
 
@@ -47,23 +47,22 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Autonomous Fixture Pipeline & Real-time Match Simulation Engine
+  // Autonomous Fixture Pipeline with Settlement Engine
   useEffect(() => {
     const simulationInterval = setInterval(() => {
       setMatches(currentMatches => {
-        // 1. Process Discovery (New Matches)
         let updatedMatches = [...currentMatches];
+        const now = Date.now();
         
-        // Randomly discover a new match (approx 15% chance every tick)
+        // Randomly spawn new matches
         if (Math.random() < 0.15) {
           const randomSport = SPORTS[Math.floor(Math.random() * SPORTS.length)].id;
           const { teams, leagues } = TEAMS_BY_SPORT[randomSport];
-          
           let home = teams[Math.floor(Math.random() * teams.length)];
           let away = teams[Math.floor(Math.random() * teams.length)];
-          while (home === away) {
-             away = teams[Math.floor(Math.random() * teams.length)];
-          }
+          while (home === away) away = teams[Math.floor(Math.random() * teams.length)];
+          const isImmediate = Math.random() < 0.20;
+          const startTime = isImmediate ? new Date(now).toISOString() : new Date(now + (Math.random() * 3600000)).toISOString();
 
           const newMatch: Match = {
             id: Math.random().toString(36).substr(2, 9),
@@ -71,8 +70,10 @@ const App: React.FC = () => {
             league: leagues[Math.floor(Math.random() * leagues.length)],
             homeTeam: home,
             awayTeam: away,
-            startTime: new Date(Date.now() + (Math.random() * 172800000)).toISOString(),
-            status: 'Upcoming',
+            startTime,
+            status: isImmediate ? 'Live' : 'Upcoming',
+            minute: isImmediate ? 0 : undefined,
+            score: isImmediate ? { home: 0, away: 0 } : undefined,
             odds: {
               home: 1.5 + Math.random() * 2,
               draw: randomSport === 'Soccer' ? 2.5 + Math.random() * 2 : undefined,
@@ -81,39 +82,46 @@ const App: React.FC = () => {
             isNew: true
           };
           updatedMatches.unshift(newMatch);
-
-          // Remove "New" tag after 30 seconds
-          setTimeout(() => {
-            setMatches(prev => prev.map(m => m.id === newMatch.id ? { ...m, isNew: false } : m));
-          }, 30000);
+          setTimeout(() => setMatches(prev => prev.map(m => m.id === newMatch.id ? { ...m, isNew: false } : m)), 20000);
         }
 
-        // 2. Process Live Simulations
         return updatedMatches.map(match => {
-          if (match.status !== 'Live') return match;
-
-          const newMinute = (match.minute || 0) + 1;
-          let newScore = match.score ? { ...match.score } : undefined;
-          if (Math.random() < 0.03 && newScore) {
-            if (Math.random() > 0.5) newScore.home += 1;
-            else newScore.away += 1;
+          if (match.status === 'Upcoming' && new Date(match.startTime).getTime() <= now) {
+            return { ...match, status: 'Live', minute: 0, score: { home: 0, away: 0 } };
           }
+          if (match.status === 'Live') {
+            const newMinute = (match.minute || 0) + 1;
+            let newScore = match.score ? { ...match.score } : { home: 0, away: 0 };
+            
+            // Goal Logic
+            if (Math.random() < 0.04) {
+              if (Math.random() > 0.5) newScore.home += 1; else newScore.away += 1;
+            }
+            
+            // Odds Fluctuation
+            const fluctuate = (odd: number) => Math.max(1.01, odd + ((Math.random() - 0.5) * 0.15));
+            const newOdds = {
+              home: fluctuate(match.odds.home),
+              draw: match.odds.draw ? fluctuate(match.odds.draw) : undefined,
+              away: fluctuate(match.odds.away),
+            };
 
-          const fluctuate = (odd: number) => Math.max(1.01, odd + ((Math.random() - 0.5) * 0.1));
-          const newOdds = {
-            home: fluctuate(match.odds.home),
-            draw: match.odds.draw ? fluctuate(match.odds.draw) : undefined,
-            away: fluctuate(match.odds.away),
-          };
+            // Automatic Match Settlement Logic
+            if (newMinute >= 95) {
+              const finishedMatch: Match = { ...match, minute: 95, score: newScore, status: 'Finished' };
+              // Critical: Auto-settle all bets for all users for this match
+              authService.autoSettleBets(finishedMatch);
+              // Trigger a state refresh for current user
+              setTimeout(refreshUser, 500);
+              return finishedMatch;
+            }
 
-          let newStatus: Match['status'] = match.status;
-          if (newMinute >= 95) newStatus = 'Finished';
-
-          return { ...match, minute: newMinute, score: newScore, odds: newOdds, status: newStatus };
+            return { ...match, minute: newMinute, score: newScore, odds: newOdds };
+          }
+          return match;
         });
       });
     }, 5000);
-
     return () => clearInterval(simulationInterval);
   }, []);
 
@@ -121,35 +129,27 @@ const App: React.FC = () => {
     return matches.filter(m => {
       const sportMatch = m.sport === activeSport;
       const statusMatch = statusFilter === 'All' || m.status === statusFilter;
-      return sportMatch && statusMatch;
+      return sportMatch && statusMatch && m.status !== 'Finished';
     });
   }, [activeSport, statusFilter, matches]);
 
   const handleSelection = (selection: BetSelection) => {
-    if (!currentUser) {
-      setIsAuthModalOpen(true);
-      return;
-    }
+    if (!currentUser) { setIsAuthModalOpen(true); return; }
     setSelections(prev => {
       const filtered = prev.filter(s => s.matchId !== selection.matchId);
-      const isAlreadyInSlip = prev.find(s => s.matchId === selection.matchId && s.selection === selection.selection);
-      if (isAlreadyInSlip) return filtered;
-      return [...filtered, selection];
+      const exists = prev.find(s => s.matchId === selection.matchId && s.selection === selection.selection);
+      return exists ? filtered : [...filtered, selection];
     });
   };
 
-  const removeSelection = (matchId: string) => {
-    setSelections(prev => prev.filter(s => s.matchId !== matchId));
-  };
-
+  const removeSelection = (matchId: string) => setSelections(prev => prev.filter(s => s.matchId !== matchId));
   const clearSlip = () => setSelections([]);
 
   const placeBet = (stake: number) => {
     if (!currentUser) return;
-    
     const totalOdds = selections.reduce((acc, curr) => acc * curr.odds, 1);
     const newBet: BetRecord = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: 'SLIP-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
       timestamp: Date.now(),
       selections: [...selections],
       stake,
@@ -158,404 +158,189 @@ const App: React.FC = () => {
       status: 'Pending'
     };
 
-    const newBalance = currentUser.balance - stake;
-    const updatedUser = { ...currentUser, balance: newBalance };
-    
+    const updatedUser = { ...currentUser, balance: currentUser.balance - stake };
     setCurrentUser(updatedUser);
     authService.saveUser(updatedUser);
     authService.addBetToHistory(currentUser.username, newBet);
     
-    const houseStats = authService.getHouseStats();
+    const stats = authService.getHouseStats();
     authService.updateHouseStats({
-      totalTreasury: houseStats.totalTreasury + stake,
-      totalVolume: houseStats.totalVolume + stake,
-      totalProfit: houseStats.totalProfit + stake
+      totalTreasury: stats.totalTreasury + stake,
+      totalVolume: stats.totalVolume + stake,
+      totalProfit: stats.totalProfit + stake
     });
 
     setBetHistory(prev => [newBet, ...prev]);
     setSelections([]);
   };
 
-  const handleDeposit = (amount: number) => {
+  const handleRealMoneyDeposit = (amount: number, method: string) => {
     if (!currentUser) return;
     const updatedUser = { ...currentUser, balance: currentUser.balance + amount };
     setCurrentUser(updatedUser);
     authService.saveUser(updatedUser);
+    
+    authService.logTransaction({
+      id: 'DEP-' + Math.random().toString(36).substr(2, 9).toUpperCase(),
+      type: 'Deposit',
+      amount,
+      status: 'Approved',
+      timestamp: Date.now(),
+      method,
+      details: `User: ${currentUser.username} | Automated Gateway`
+    });
+  };
+
+  const handleKycSubmit = (details: NonNullable<User['kycDetails']>) => {
+    if (!currentUser) return;
+    const updatedUser: User = { ...currentUser, kycStatus: 'Pending', kycDetails: details };
+    setCurrentUser(updatedUser);
+    authService.saveUser(updatedUser);
+    setIsKycModalOpen(false);
+  };
+
+  const initiateWithdrawal = () => {
+    if (!currentUser) return;
+    if (currentUser.kycStatus === 'Verified') setIsWithdrawModalOpen(true);
+    else if (currentUser.kycStatus === 'Pending') alert('Account Verification Pending.');
+    else setIsKycModalOpen(true);
   };
 
   const handleWithdrawalRequest = (amount: number, upiId: string) => {
     if (!currentUser) return;
-    
     const request: WithdrawalRequest = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: 'WIT-' + Math.random().toString(36).substr(2, 9).toUpperCase(),
       username: currentUser.username,
       amount,
       upiId,
       timestamp: Date.now(),
       status: 'Pending'
     };
-
-    const newBalance = currentUser.balance - amount;
-    const updatedUser = { ...currentUser, balance: newBalance };
-    
+    const updatedUser = { ...currentUser, balance: currentUser.balance - amount };
     setCurrentUser(updatedUser);
     authService.saveUser(updatedUser);
     authService.addWithdrawalRequest(request);
   };
 
-  const settleBet = (bet: BetRecord) => {
+  const settleBetManually = (bet: BetRecord) => {
     if (!currentUser) return;
-    
-    const won = Math.random() > 0.6;
-    const updatedBet: BetRecord = {
-      ...bet,
-      status: won ? 'Won' : 'Lost',
-      winnings: won ? bet.potentialPayout : 0
-    };
-
+    // Manual override simulation if needed
+    const won = Math.random() > 0.5;
+    const updatedBet: BetRecord = { ...bet, status: won ? 'Won' : 'Lost', winnings: won ? bet.potentialPayout : 0 };
     if (won) {
-      const newBalance = currentUser.balance + bet.potentialPayout;
-      const updatedUser = { ...currentUser, balance: newBalance };
+      const updatedUser = { ...currentUser, balance: currentUser.balance + bet.potentialPayout };
       setCurrentUser(updatedUser);
       authService.saveUser(updatedUser);
-
-      const houseStats = authService.getHouseStats();
-      authService.updateHouseStats({
-        totalTreasury: houseStats.totalTreasury - bet.potentialPayout,
-        totalProfit: houseStats.totalProfit - bet.potentialPayout
-      });
     }
-
     authService.updateBetInHistory(currentUser.username, updatedBet);
-    setBetHistory(prev => prev.map(b => b.id === updatedBet.id ? updatedBet : b));
-  };
-
-  const fetchAIInsight = async (match: Match) => {
-    setLoadingInsight(true);
-    setSelectedInsight(null);
-    const insight = await getMatchInsight(match);
-    setSelectedInsight(insight);
-    setLoadingInsight(false);
-  };
-
-  const handleLogout = () => {
-    authService.logout();
-    setCurrentUser(null);
-    setBetHistory([]);
-    setIsAuthModalOpen(true);
-  };
-
-  const handleAuthSuccess = (user: User) => {
-    setCurrentUser(user);
-    setBetHistory(authService.getBetHistory(user.username));
-    setIsAuthModalOpen(false);
+    refreshUser();
   };
 
   return (
     <div className="min-h-screen flex flex-col">
-      {isAuthModalOpen && <AuthModal onSuccess={handleAuthSuccess} />}
-      {isDepositModalOpen && (
-        <DepositModal 
-          onClose={() => setIsDepositModalOpen(false)} 
-          onDeposit={handleDeposit} 
-        />
-      )}
-      {isWithdrawModalOpen && currentUser && (
-        <WithdrawModal
-          balance={currentUser.balance}
-          onClose={() => setIsWithdrawModalOpen(false)}
-          onWithdraw={handleWithdrawalRequest}
-        />
-      )}
-      {isHistoryOpen && currentUser && (
-        <BetHistory 
-          history={betHistory} 
-          onClose={() => setIsHistoryOpen(false)} 
-          onSettle={settleBet}
-        />
-      )}
-      {isAdminPanelOpen && currentUser?.isAdmin && (
-        <AdminPanel 
-          onClose={() => setIsAdminPanelOpen(false)} 
-          currentUser={currentUser}
-          onRefreshUser={refreshUser}
-        />
-      )}
-      {isSettingsOpen && currentUser && (
-        <SettingsModal 
-          user={currentUser} 
-          onClose={() => setIsSettingsOpen(false)} 
-          onUpdate={refreshUser}
-        />
-      )}
+      {isAuthModalOpen && <AuthModal onSuccess={(u) => { setCurrentUser(u); setBetHistory(authService.getBetHistory(u.username)); setIsAuthModalOpen(false); }} />}
+      {isDepositModalOpen && <DepositModal onClose={() => setIsDepositModalOpen(false)} onDeposit={handleRealMoneyDeposit} />}
+      {isWithdrawModalOpen && currentUser && <WithdrawModal balance={currentUser.balance} onClose={() => setIsWithdrawModalOpen(false)} onWithdraw={handleWithdrawalRequest} />}
+      {isKycModalOpen && <KycModal onClose={() => setIsKycModalOpen(false)} onSubmit={handleKycSubmit} />}
+      {isHistoryOpen && currentUser && <BetHistory history={betHistory} onClose={() => setIsHistoryOpen(false)} onSettle={settleBetManually} />}
+      {isAdminPanelOpen && currentUser?.isAdmin && <AdminPanel onClose={() => setIsAdminPanelOpen(false)} currentUser={currentUser} onRefreshUser={refreshUser} />}
+      {isSettingsOpen && currentUser && <SettingsModal user={currentUser} onClose={() => setIsSettingsOpen(false)} onUpdate={refreshUser} />}
 
-      {/* Navbar */}
       <nav className="bg-zinc-950 border-b border-zinc-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <h1 className="text-2xl font-black text-white italic tracking-tighter cursor-pointer" onClick={() => window.location.reload()}>
               NEXUS<span className="text-emerald-500">BET</span>
             </h1>
-            <div className="hidden md:flex gap-6">
-              <button className="text-sm font-bold text-white hover:text-emerald-500 transition-colors uppercase">Sports</button>
-              <button 
-                onClick={() => currentUser && setIsHistoryOpen(true)}
-                className="text-sm font-bold text-zinc-500 hover:text-white transition-colors uppercase"
-              >
-                My Bets
-              </button>
-              <button className="text-sm font-bold text-zinc-500 hover:text-white transition-colors uppercase">Casino</button>
-            </div>
           </div>
           <div className="flex items-center gap-4">
             {currentUser ? (
               <>
                 <div className="hidden sm:flex flex-col items-end">
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase">Balance</span>
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase">Available Funds</span>
                   <span className="text-emerald-400 font-black">₹{currentUser.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex gap-2">
-                  <button 
-                    onClick={() => setIsDepositModalOpen(true)}
-                    className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-400 transition-colors"
-                  >
-                    Deposit
-                  </button>
-                  <button 
-                    onClick={() => setIsWithdrawModalOpen(true)}
-                    className="bg-zinc-800 text-zinc-300 px-4 py-2 rounded-lg font-bold text-sm hover:bg-zinc-700 transition-colors border border-zinc-700"
-                  >
-                    Withdraw
-                  </button>
+                  <button onClick={() => setIsDepositModalOpen(true)} className="bg-emerald-500 text-black px-4 py-2 rounded-lg font-bold text-xs hover:bg-emerald-400">Deposit</button>
+                  <button onClick={initiateWithdrawal} className="bg-zinc-800 text-zinc-300 px-4 py-2 rounded-lg font-bold text-xs hover:bg-zinc-700">Withdraw</button>
                 </div>
                 <div className="group relative">
-                  <div className={`w-10 h-10 rounded-full bg-zinc-800 border flex items-center justify-center text-zinc-400 cursor-pointer transition-all ${currentUser.isAdmin ? 'border-emerald-500' : 'border-zinc-700 hover:border-emerald-500'}`}>
-                    {currentUser.isAdmin ? '⭐' : '👤'}
+                  <div className={`w-10 h-10 rounded-full bg-zinc-800 border flex items-center justify-center text-zinc-400 cursor-pointer ${currentUser.isAdmin ? 'border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'border-zinc-700'}`}>
+                    {currentUser.isAdmin ? '👑' : '👤'}
                   </div>
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-2 z-50">
-                    <p className="px-4 py-2 text-xs font-bold text-zinc-500 uppercase border-b border-zinc-800 mb-2 flex justify-between items-center">
-                      {currentUser.username}
-                      {currentUser.isAdmin && <span className="text-[8px] bg-emerald-500 text-black px-1 rounded">ADMIN</span>}
-                    </p>
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-3 z-50">
+                    <div className="px-3 py-2 border-b border-zinc-800 mb-2">
+                      <p className="text-xs font-black text-white">{currentUser.username}</p>
+                      <p className={`text-[8px] font-bold uppercase mt-1 ${currentUser.kycStatus === 'Verified' ? 'text-emerald-500' : 'text-amber-500'}`}>
+                        KYC: {currentUser.kycStatus}
+                      </p>
+                    </div>
                     {currentUser.isAdmin && (
-                      <button 
-                        onClick={() => setIsAdminPanelOpen(true)}
-                        className="w-full text-left px-4 py-2 text-sm text-emerald-400 font-bold hover:bg-emerald-500/10 rounded-lg transition-colors"
-                      >
-                        Admin Panel
-                      </button>
+                      <button onClick={() => setIsAdminPanelOpen(true)} className="w-full text-left px-3 py-2 text-xs text-emerald-400 font-bold hover:bg-emerald-500/10 rounded-lg">Nexus Dashboard</button>
                     )}
-                    <button 
-                      onClick={() => setIsHistoryOpen(true)}
-                      className="w-full text-left px-4 py-2 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
-                    >
-                      Bet History
-                    </button>
-                    <button 
-                      onClick={() => setIsSettingsOpen(true)}
-                      className="w-full text-left px-4 py-2 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
-                    >
-                      Settings
-                    </button>
-                    <button 
-                      onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
-                    >
-                      Logout
-                    </button>
+                    <button onClick={() => setIsHistoryOpen(true)} className="w-full text-left px-3 py-2 text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg">Financial Ledger</button>
+                    <button onClick={() => { authService.logout(); setCurrentUser(null); setIsAuthModalOpen(true); }} className="w-full text-left px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg">End Session</button>
                   </div>
                 </div>
               </>
             ) : (
-              <button 
-                onClick={() => setIsAuthModalOpen(true)}
-                className="bg-zinc-800 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-zinc-700 transition-colors"
-              >
-                Login / Register
-              </button>
+              <button onClick={() => setIsAuthModalOpen(true)} className="bg-zinc-800 text-white px-6 py-2 rounded-lg font-bold text-sm">Login / Register</button>
             )}
           </div>
         </div>
       </nav>
 
       <main className="flex-1 max-w-7xl mx-auto px-4 py-8 w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Sidebar - Sports Categories */}
         <aside className="lg:col-span-2 flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-4 lg:pb-0 no-scrollbar">
-          <p className="text-xs font-bold text-zinc-500 uppercase mb-2 hidden lg:block">Popular Sports</p>
-          {SPORTS.map((sport) => {
-            const count = matches.filter(m => m.sport === sport.id && m.status !== 'Finished').length;
-            return (
-              <button
-                key={sport.id}
-                onClick={() => setActiveSport(sport.id)}
-                className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl font-semibold text-sm transition-all whitespace-nowrap lg:whitespace-normal border ${
-                  activeSport === sport.id 
-                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-lg shadow-emerald-500/5' 
-                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">{sport.icon}</span>
-                  {sport.id}
-                </div>
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${activeSport === sport.id ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-600'}`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+          <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-2 hidden lg:block">Market Filter</p>
+          {SPORTS.map((sport) => (
+            <button key={sport.id} onClick={() => setActiveSport(sport.id)} className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl font-bold text-xs transition-all border ${activeSport === sport.id ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-lg' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:bg-zinc-800'}`}>
+              <div className="flex items-center gap-3"><span>{sport.icon}</span>{sport.id}</div>
+            </button>
+          ))}
         </aside>
 
-        {/* Center - Matches */}
         <section className="lg:col-span-7 space-y-6">
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-800 rounded-2xl p-6 text-white relative overflow-hidden shadow-2xl">
-             <div className="relative z-10">
-                <span className="bg-white/20 text-[10px] font-black uppercase px-2 py-0.5 rounded mb-2 inline-block">Flash Promo</span>
-                <h2 className="text-3xl font-black mb-2 uppercase italic tracking-tighter">Champions League Night</h2>
-                <p className="text-emerald-100 text-sm font-medium mb-4">Get 50% extra profit on multi-bets with 5+ selections!</p>
-                <button 
-                  onClick={() => setIsDepositModalOpen(true)}
-                  className="bg-white text-emerald-950 px-6 py-2 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-emerald-50 transition-colors"
-                >
-                  Bet Now
-                </button>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 flex flex-col sm:flex-row items-center gap-6">
+             <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-3xl">🛡️</div>
+             <div className="flex-1 text-center sm:text-left">
+                <h3 className="text-xl font-black text-white uppercase italic tracking-tighter">Automatic Settlement Active</h3>
+                <p className="text-zinc-500 text-xs mt-1 font-medium">Money is credited to your account the second a match finishes. No manual claims required.</p>
              </div>
-             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+             <button onClick={() => setIsDepositModalOpen(true)} className="bg-white text-black px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-zinc-200">Start Winning</button>
           </div>
 
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              {activeSport} Matches
-              <span className="text-xs font-medium text-zinc-500">({filteredMatches.length})</span>
+            <h3 className="text-lg font-black text-white uppercase italic tracking-tight flex items-center gap-2">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+              Live Market Liquidity
             </h3>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setStatusFilter('All')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                  statusFilter === 'All' 
-                    ? 'bg-zinc-800 text-white border-zinc-700' 
-                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
-                }`}
-              >
-                All
-              </button>
-              <button 
-                onClick={() => setStatusFilter('Live')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                  statusFilter === 'Live' 
-                    ? 'bg-zinc-800 text-white border-zinc-700' 
-                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
-                }`}
-              >
-                Live
-              </button>
-              <button 
-                onClick={() => setStatusFilter('Upcoming')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                  statusFilter === 'Upcoming' 
-                    ? 'bg-zinc-800 text-white border-zinc-700' 
-                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
-                }`}
-              >
-                Upcoming
-              </button>
-            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredMatches.map(match => (
-              <div key={match.id} className="group relative">
-                <MatchCard 
-                  match={match} 
-                  onSelect={handleSelection} 
-                  activeSelections={selections}
-                />
-                <button 
-                  onClick={() => fetchAIInsight(match)}
-                  className="absolute bottom-4 right-4 text-[10px] font-bold text-emerald-500 hover:underline flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  ✨ AI Analysis
-                </button>
-              </div>
+              <MatchCard key={match.id} match={match} onSelect={handleSelection} activeSelections={selections} />
             ))}
-            {filteredMatches.length === 0 && (
-              <div className="col-span-full py-20 text-center bg-zinc-900/50 rounded-2xl border border-dashed border-zinc-800">
-                <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm">Waiting for discovered markets...</p>
-                <div className="flex justify-center gap-1 mt-4">
-                  <div className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce"></div>
-                  <div className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce delay-100"></div>
-                  <div className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce delay-200"></div>
-                </div>
-              </div>
-            )}
           </div>
-
-          {(loadingInsight || selectedInsight) && (
-            <div className="bg-zinc-900 border border-emerald-500/30 rounded-2xl p-6 relative overflow-hidden">
-               <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
-               <div className="flex justify-between items-start mb-4">
-                  <h4 className="text-emerald-400 font-bold flex items-center gap-2">
-                    <span className="text-xl">🤖</span> NexusAI Insights
-                  </h4>
-                  {selectedInsight && (
-                    <button onClick={() => setSelectedInsight(null)} className="text-zinc-500 hover:text-white text-xs">✕</button>
-                  )}
-               </div>
-               {loadingInsight ? (
-                 <div className="flex items-center gap-4 py-4">
-                    <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-zinc-400 animate-pulse text-sm">NexusAI is analyzing historical data and player performance...</p>
-                 </div>
-               ) : selectedInsight && (
-                 <div className="space-y-3">
-                    <div className="flex items-center gap-4">
-                       <div className="bg-zinc-800 px-3 py-1 rounded-full text-xs font-bold text-emerald-500 border border-emerald-500/20">
-                          {selectedInsight.confidence}% Confidence
-                       </div>
-                       <p className="text-white font-bold text-lg">{selectedInsight.prediction}</p>
-                    </div>
-                    <p className="text-zinc-400 text-sm leading-relaxed">{selectedInsight.reasoning}</p>
-                 </div>
-               )}
-            </div>
-          )}
         </section>
 
         <aside className="lg:col-span-3">
+          {/* Passed 'matches' prop to BetSlip for Live Odds Tracking */}
           <BetSlip 
             selections={selections} 
-            onRemove={removeSelection}
-            onClear={clearSlip}
-            balance={currentUser?.balance || 0}
+            onRemove={removeSelection} 
+            onClear={clearSlip} 
+            balance={currentUser?.balance || 0} 
             onBetPlaced={placeBet}
+            matches={matches} 
           />
-          
-          <div className="mt-8 bg-zinc-900/40 rounded-xl p-4 border border-zinc-800/60">
-            <h4 className="text-xs font-bold text-zinc-500 uppercase mb-3">Recent Winners</h4>
-            <div className="space-y-3">
-              {[1, 2].map(i => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">🏆</div>
-                  <div>
-                    <p className="text-xs font-bold text-white">user_823{i} won ₹42,000.00</p>
-                    <p className="text-[10px] text-zinc-500 font-medium">8-leg Soccer Acca</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </aside>
       </main>
 
-      <footer className="bg-zinc-950 border-t border-zinc-800 p-8 mt-12 text-center">
-        <div className="max-w-4xl mx-auto space-y-4">
-          <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em]">Gambling can be addictive. Please play responsibly.</p>
-          <div className="flex justify-center gap-6">
-            <span className="text-2xl opacity-20 grayscale">🔞</span>
-            <span className="text-2xl opacity-20 grayscale">🛡️</span>
-            <span className="text-2xl opacity-20 grayscale">🔐</span>
-          </div>
-          <p className="text-xs text-zinc-600">© 2024 NexusBet Group. All rights reserved. Licenses: MGA/B2C/123/2024</p>
+      <footer className="bg-zinc-950 border-t border-zinc-800 p-12 mt-12">
+        <div className="max-w-7xl mx-auto text-center space-y-4">
+           <h4 className="text-xl font-black text-white italic tracking-tighter">NEXUS<span className="text-emerald-500">BET</span></h4>
+           <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.4em]">Integrated Exchange • Automatic Settlement Engine</p>
         </div>
       </footer>
     </div>

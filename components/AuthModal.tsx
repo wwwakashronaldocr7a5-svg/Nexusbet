@@ -21,14 +21,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
     setError('');
 
     if (isLogin) {
-      const users = authService.getUsers();
-      const userToFind = users.find(u => u.username === username);
-      
-      if (userToFind?.isBanned) {
-        setError('Your account has been suspended by Nexus Administration.');
-        return;
-      }
-
       const user = authService.login(username, password, remember);
       if (user) {
         onSuccess(user);
@@ -40,12 +32,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
         setError('All fields are required');
         return;
       }
+      // Fix: Add missing kycStatus property to satisfy the User type requirement.
       const newUser: User = {
         username,
         password,
         email,
         balance: INITIAL_BALANCE,
-        currency: 'INR'
+        currency: 'INR',
+        kycStatus: 'Unverified'
       };
       const success = authService.register(newUser);
       if (success) {
@@ -57,9 +51,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
     }
   };
 
+  const fillAdminCredentials = () => {
+    setUsername('admin');
+    setPassword('password123');
+    setIsLogin(true);
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+      <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-300">
         <div className="p-8">
           <div className="text-center mb-8">
             <h2 className="text-2xl font-black text-white italic tracking-tighter mb-2">
@@ -142,11 +142,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
 
             <button
               type="submit"
-              className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-3 rounded-xl transition-all shadow-lg shadow-emerald-900/20 uppercase tracking-widest text-sm mt-4"
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-3 rounded-xl transition-all shadow-lg shadow-emerald-900/20 uppercase tracking-widest text-sm mt-4 active:scale-95"
             >
               {isLogin ? 'Sign In' : 'Create Account'}
             </button>
           </form>
+
+          {isLogin && (
+            <div className="mt-6 pt-6 border-t border-zinc-800">
+               <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest text-center mb-4">Quick Access Profiles</p>
+               <button 
+                onClick={fillAdminCredentials}
+                className="w-full py-2 bg-zinc-800/50 border border-zinc-800 rounded-lg flex items-center justify-center gap-2 group hover:border-emerald-500/50 transition-all"
+               >
+                 <span className="text-xs font-bold text-zinc-400 group-hover:text-emerald-400">Login as Administrator</span>
+                 <span className="bg-emerald-500/10 text-emerald-500 text-[8px] px-1.5 py-0.5 rounded font-black">ROOT</span>
+               </button>
+            </div>
+          )}
         </div>
         
         <div className="bg-zinc-800/50 p-6 border-t border-zinc-800 text-center">

@@ -1,7 +1,9 @@
 
 export type SportType = 'Soccer' | 'Basketball' | 'Tennis' | 'Cricket' | 'Esports' | 'MMA';
 export type BetStatus = 'Pending' | 'Won' | 'Lost';
-export type TransactionStatus = 'Pending' | 'Approved' | 'Rejected';
+export type TransactionStatus = 'Pending' | 'Approved' | 'Rejected' | 'Processing';
+export type TransactionType = 'Deposit' | 'Withdrawal' | 'Bet_Placement' | 'Bet_Winnings' | 'Bonus';
+export type KycStatus = 'Unverified' | 'Pending' | 'Verified' | 'Rejected';
 
 export interface Odds {
   home: number;
@@ -42,6 +44,16 @@ export interface BetRecord {
   winnings?: number;
 }
 
+export interface Transaction {
+  id: string;
+  type: TransactionType;
+  amount: number;
+  status: TransactionStatus;
+  timestamp: number;
+  method?: string;
+  details?: string;
+}
+
 export interface WithdrawalRequest {
   id: string;
   username: string;
@@ -68,10 +80,17 @@ export interface User {
   username: string;
   password?: string;
   balance: number;
+  bonusBalance?: number;
   currency: string;
   email: string;
   isAdmin?: boolean;
   isBanned?: boolean;
+  kycStatus: KycStatus;
+  kycDetails?: {
+    fullName: string;
+    idNumber: string;
+    idType: string;
+  };
   notifications?: {
     matchStart: boolean;
     goalAlerts: boolean;

@@ -3,15 +3,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>NexusBet | Premium Sports Betting</title>
     
-    <!-- Android & iOS Mobile Meta Tags -->
+    <!-- PWA / Mobile Meta Tags -->
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#09090b">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="NexusBet">
+    
+    <!-- Icons -->
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/5358/5358648.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,11 +26,11 @@
             font-family: 'Inter', sans-serif;
             background-color: #09090b;
             color: #fafafa;
-            /* Prevent pull-to-refresh on some mobile browsers if needed */
             overscroll-behavior-y: contain;
+            /* Support for notches on modern phones */
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
         
-        /* Hide scrollbars for mobile-friendly category list */
         .no-scrollbar::-webkit-scrollbar {
             display: none;
         }
@@ -48,8 +52,20 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #52525b;
         }
+
+        /* Prevent long-press context menu on UI elements for a more native feel */
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        /* Re-enable selection for inputs and forms */
+        input, textarea, [contenteditable="true"] {
+            -webkit-user-select: text;
+            user-select: text;
+        }
     </style>
-    <!-- Polyfill for process.env to ensure compatibility with SDKs -->
     <script>
         window.process = window.process || { env: {} };
     </script>
